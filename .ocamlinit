@@ -1,0 +1,9 @@
+#directory "src/_build";;
+#require "ptime.top";;
+#require "ipaddr.top";;
+#require "cohttp.top";;
+#load "logparse.cma";;
+
+let test_line =
+  {|5.135.188.139 - - [07/Aug/2016:06:44:22 +0100] "GET /posts.rss.xml HTTP/1.1" 200 236907 "-" "Tiny Tiny RSS/1.15.3.0c6f7b3 (http://tt-rss.org/)"
+|}
