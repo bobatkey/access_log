@@ -23,3 +23,7 @@ val logline :
   [ `Line of logline
   | `Parse_error
   | `End_of_input ]
+
+val loglines : Lexing.lexbuf -> logline list * int
+
+val loglines_of_file : string -> logline list * int

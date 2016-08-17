@@ -174,4 +174,21 @@ let status {status} = status
 let length {length} = length
 let referrer {referrer} = referrer
 let user_agent {user_agent} = user_agent
+
+let loglines lb =
+  let rec loop errors accum =
+    match logline lb with
+      | `End_of_input -> List.rev accum, errors
+      | `Parse_error  -> loop (errors+1) accum
+      | `Line line    -> loop errors (line::accum)
+  in
+  loop 0 []
+
+let loglines_of_file filename =
+  let ch = open_in filename in
+  try
+    let lb = Lexing.from_channel ch in
+    let l  = loglines lb in
+    close_in ch; l
+  with e -> close_in ch; raise e
 }
