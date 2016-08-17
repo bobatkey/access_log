@@ -132,6 +132,12 @@ type logline =
   ; user_agent   : string option
   }
 
+let make ~addr ?userid ~timestamp ~meth ~resource ?(http_version=(1,1)) ~status ~length ?referrer ?user_agent () =
+  { addr; userid; timestamp
+  ; request_line = `Parsed (meth, resource, http_version)
+  ; status; length; referrer; user_agent
+  }
+
 let parse_request_line str =
   let lb = Lexing.from_string str in
   try `Parsed (request_line lb) with Failure _ -> `Unparsed str
