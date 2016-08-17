@@ -111,8 +111,11 @@ and until_newline = parse
 | [^'\n']* eof  { () }
 
 and request_line = parse
-| ([^' ']+ as method_str) ' ' ([^' ']+ as target) ' ' "HTTP/" (digit as major) '.' (digit as minor)
-  { (Cohttp.Code.method_of_string method_str, target, (int_of_char major, int_of_char minor)) }
+|     ([^' ']+ as method_str)
+  ' ' ([^' ']+ as target)
+  ' ' "HTTP/" (digit as major) '.' (digit as minor)
+  { (Cohttp.Code.method_of_string method_str, target,
+     (int_of_char major, int_of_char minor)) }
 
 {
 let status_code lexbuf =
