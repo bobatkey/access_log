@@ -195,4 +195,84 @@ let loglines_of_file filename =
     let l  = loglines lb in
     close_in ch; l
   with e -> close_in ch; raise e
+
+let none_means_dash = function
+  | None -> "-"
+  | Some str -> str
+
+let string_of_month = function
+  | 1  -> "Jan"
+  | 2  -> "Feb"
+  | 3  -> "Mar"
+  | 4  -> "Apr"
+  | 5  -> "May"
+  | 6  -> "Jun"
+  | 7  -> "Jul"
+  | 8  -> "Aug"
+  | 9  -> "Sep"
+  | 10 -> "Oct"
+  | 11 -> "Nov"
+  | 12 -> "Dec"
+  | _  -> assert false
+
+let output_timestamp ?tz_offset_s ch ptime =
+  let (year, month, day), ((hours, minutes, seconds), tz_offset_s) =
+    Ptime.to_date_time ?tz_offset_s ptime
+  in
+  let tz_sign, tz_h, tz_m =
+    if tz_offset_s mod 60 = 0 then
+      let tz_offset_m = abs tz_offset_s / 60 in
+      let tz_offset_h = tz_offset_m / 60 in
+      let tz_sign = if tz_offset_s < 0 then '-' else '+' in
+      tz_sign, tz_offset_h, tz_offset_m mod 60
+    else
+      '+', 0, 0
+  in
+  Printf.fprintf ch "[%02d/%s/%04d:%02d:%02d:%02d %c%02d%02d]"
+    day
+    (string_of_month month)
+    year
+    hours
+    minutes
+    seconds
+    tz_sign
+    tz_h
+    tz_m
+
+let escape_string s =
+  let b = Buffer.create (String.length s * 2) in
+  for i = 0 to String.length s - 1 do
+    match s.[i] with
+      | '\\' ->
+         Buffer.add_string b "\\\\"
+      | '\n' ->
+         Buffer.add_string b "\\n"
+      | '\t' ->
+         Buffer.add_string b "\\t"
+      | '\x00' .. '\x1f' | '\x80' .. '\xff' ->
+         Printf.bprintf b "\\x%02X" (Char.code s.[i])
+      | c ->
+         Buffer.add_char b c
+  done;
+  Buffer.contents b
+
+let output ?tz_offset_s ch logline =
+  Printf.fprintf ch "%s - %s "
+    (Ipaddr.V4.to_string logline.addr)
+    (none_means_dash logline.userid);
+  output_timestamp ?tz_offset_s ch logline.timestamp;
+  (match logline.request_line with
+    | `Parsed (meth, path, (major,minor)) ->
+       Printf.fprintf ch " \"%s %s HTTP/%d.%d\" "
+         (Cohttp.Code.string_of_method meth)
+         (escape_string path)
+         major
+         minor
+    | `Unparsed str ->
+       Printf.fprintf ch " \"%s\" " (escape_string str));
+  Printf.fprintf ch "%d %d \"%s\" \"%s\"\n"
+    (Cohttp.Code.code_of_status logline.status)
+    logline.length
+    (match logline.referrer with None -> "-" | Some s -> escape_string s)
+    (match logline.user_agent with None -> "-" | Some s -> escape_string s)
 }
