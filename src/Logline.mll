@@ -13,6 +13,8 @@ let month_of_string = function
   | "Nov" -> 11
   | "Dec" -> 12
   | _     -> assert false
+
+let int_of_char c = Char.code c - Char.code '0'
 }
 
 let digit = ['0'-'9']
@@ -33,6 +35,8 @@ let month =
 | "Jul" | "Aug" | "Sep" | "Oct" | "Nov" | "Dec"
 
 let hex = digit | ['A'-'Z''a'-'z']
+
+(* Parsing rules *)
 
 rule ipv4_address = parse
 | ipv4_address as str
@@ -59,19 +63,20 @@ and datetime = parse
       and seconds   = int_of_string seconds
       and tz_offset =
         (if sign = '-' then -60 else 60)
-	* (int_of_string tz_hours * 60 + int_of_string tz_minutes)
+        * (int_of_string tz_hours * 60 + int_of_string tz_minutes)
       in
-      (* FIXME: return the string if this doesn't work *)
-      Ptime.of_date_time
-        ((year, month, day),
-	 ((hours, minutes, seconds), tz_offset)) }
-
-and optional_natural = parse
-| digit+ as digits { Some (int_of_string digits) }
-| '-'              { None }
+      let date = year, month, day in
+      let time = (hours, minutes, seconds), tz_offset in
+      match Ptime.of_date_time (date, time) with
+        | None       -> failwith ""
+        | Some ptime -> ptime }
 
 and natural = parse
 | digit+ as digits { int_of_string digits }
+
+and natural_or_dash = parse
+| digit+ as digits { int_of_string digits }
+| '-'              { 0 }
 
 and quoted_string = parse
 | '"' { let b = Buffer.create 256 in
@@ -84,6 +89,7 @@ and quoted_string_text buf = parse
 | '"'                  { Buffer.contents buf }
 | "\\n"                { Buffer.add_char buf '\n'; quoted_string_text buf lexbuf }
 | "\\t"                { Buffer.add_char buf '\t'; quoted_string_text buf lexbuf }
+| "\\\\"               { Buffer.add_char buf '\\'; quoted_string_text buf lexbuf }
 | "\\x" (hex hex as code)
                        { Buffer.add_char buf (Char.chr (Scanf.sscanf code "%x" (fun x -> x)));
                          quoted_string_text buf lexbuf }
@@ -97,9 +103,16 @@ and newline = parse
 and dash = parse
 | '-' { () }
 
+and non_ws = parse
+| [^' ''\t']+ { Lexing.lexeme lexbuf }
+
 and until_newline = parse
 | [^'\n']* '\n' { () }
 | [^'\n']* eof  { () }
+
+and request_line = parse
+| ([^' ']+ as method_str) ' ' ([^' ']+ as target) ' ' "HTTP/" (digit as major) '.' (digit as minor)
+  { (Cohttp.Code.method_of_string method_str, target, (int_of_char major, int_of_char minor)) }
 
 {
 let status_code lexbuf =
@@ -107,13 +120,22 @@ let status_code lexbuf =
 
 type logline =
   { addr         : Ipaddr.V4.t
-  ; timestamp    : Ptime.t option
-  ; request_line : string
+  ; userid       : string option
+  ; timestamp    : Ptime.t
+  ; request_line : [ `Parsed of Cohttp.Code.meth * string * (int * int) | `Unparsed of string ]
   ; status       : Cohttp.Code.status_code
   ; length       : int
-  ; referrer     : string
-  ; user_agent   : string
+  ; referrer     : string option
+  ; user_agent   : string option
   }
+
+let parse_request_line str =
+  let lb = Lexing.from_string str in
+  try `Parsed (request_line lb) with Failure _ -> `Unparsed str
+
+let dash_means_None = function
+  | "-" -> None
+  | str -> Some str
 
 let logline lexbuf =
   try
@@ -121,21 +143,21 @@ let logline lexbuf =
     let ()        = ws lexbuf in
     let ()        = dash lexbuf in
     let ()        = ws lexbuf in
-    let ()        = dash lexbuf in
+    let userid    = dash_means_None (non_ws lexbuf) in
     let ()        = ws lexbuf in
     let timestamp = datetime lexbuf in
     let ()        = ws lexbuf in
-    let req       = quoted_string lexbuf in
+    let req       = parse_request_line (quoted_string lexbuf) in
     let ()        = ws lexbuf in
     let status    = status_code lexbuf in
     let ()        = ws lexbuf in
-    let length    = natural lexbuf in
+    let length    = natural_or_dash lexbuf in
     let ()        = ws lexbuf in
-    let referrer  = quoted_string lexbuf in
+    let referrer  = quoted_string lexbuf |> dash_means_None in
     let ()        = ws lexbuf in
-    let ua        = quoted_string lexbuf in
+    let ua        = quoted_string lexbuf |> dash_means_None in
     let ()        = newline lexbuf in
-    `Line { addr; timestamp; request_line = req; status
+    `Line { addr; userid; timestamp; request_line = req; status
           ; length; referrer; user_agent = ua }
   with
    | Failure _ ->
@@ -143,4 +165,13 @@ let logline lexbuf =
       `Parse_error
    | End_of_file ->
       `End_of_input
+
+let addr {addr} = addr
+let userid {userid} = userid
+let timestamp {timestamp} = timestamp
+let request_line {request_line} = request_line
+let status {status} = status
+let length {length} = length
+let referrer {referrer} = referrer
+let user_agent {user_agent} = user_agent
 }

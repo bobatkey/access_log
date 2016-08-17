@@ -1,12 +1,22 @@
 type logline =
   { addr         : Ipaddr.V4.t
-  ; timestamp    : Ptime.t option
-  ; request_line : string
+  ; userid       : string option
+  ; timestamp    : Ptime.t
+  ; request_line : [ `Parsed of Cohttp.Code.meth * string * (int * int) | `Unparsed of string ]
   ; status       : Cohttp.Code.status_code
   ; length       : int
-  ; referrer     : string
-  ; user_agent   : string
+  ; referrer     : string option
+  ; user_agent   : string option
   }
+
+val addr : logline -> Ipaddr.V4.t
+val userid : logline -> string option
+val timestamp : logline -> Ptime.t
+val request_line : logline -> [ `Parsed of Cohttp.Code.meth * string * (int * int) | `Unparsed of string ]
+val status : logline -> Cohttp.Code.status_code
+val length : logline -> int
+val referrer : logline -> string option
+val user_agent : logline -> string option
 
 val logline :
   Lexing.lexbuf ->
