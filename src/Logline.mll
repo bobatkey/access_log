@@ -98,16 +98,16 @@ and ws = parse
 | [' ''\t']+ { () }
 
 and newline = parse
-| '\n' { () }
+| '\n' { Lexing.new_line lexbuf; () }
 
 and dash = parse
 | '-' { () }
 
 and non_ws = parse
-| [^' ''\t']+ { Lexing.lexeme lexbuf }
+| [^' ''\t''\n']+ { Lexing.lexeme lexbuf }
 
 and until_newline = parse
-| [^'\n']* '\n' { () }
+| [^'\n']* '\n' { Lexing.new_line lexbuf; () }
 | [^'\n']* eof  { () }
 
 and request_line = parse
@@ -160,11 +160,12 @@ let logline lexbuf =
     `Line { addr; userid; timestamp; request_line = req; status
           ; length; referrer; user_agent = ua }
   with
-   | Failure _ ->
-      let () = until_newline lexbuf in
-      `Parse_error
-   | End_of_file ->
-      `End_of_input
+    | Failure _ ->
+       let {Lexing.pos_lnum} = Lexing.lexeme_start_p lexbuf in
+       let () = until_newline lexbuf in
+       `Parse_error_on_line (pos_lnum+1)
+    | End_of_file ->
+       `End_of_input
 
 let addr {addr} = addr
 let userid {userid} = userid
@@ -178,11 +179,11 @@ let user_agent {user_agent} = user_agent
 let loglines lb =
   let rec loop errors accum =
     match logline lb with
-      | `End_of_input -> List.rev accum, errors
-      | `Parse_error  -> loop (errors+1) accum
-      | `Line line    -> loop errors (line::accum)
+      | `End_of_input             -> List.rev accum, List.rev errors
+      | `Parse_error_on_line lnum -> loop (lnum::errors) accum
+      | `Line line                -> loop errors (line::accum)
   in
-  loop 0 []
+  loop [] []
 
 let loglines_of_file filename =
   let ch = open_in filename in

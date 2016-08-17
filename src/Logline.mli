@@ -21,9 +21,9 @@ val user_agent : logline -> string option
 val logline :
   Lexing.lexbuf ->
   [ `Line of logline
-  | `Parse_error
+  | `Parse_error_on_line of int
   | `End_of_input ]
 
-val loglines : Lexing.lexbuf -> logline list * int
+val loglines : Lexing.lexbuf -> logline list * int list
 
-val loglines_of_file : string -> logline list * int
+val loglines_of_file : string -> logline list * int list
