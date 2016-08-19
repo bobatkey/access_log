@@ -85,14 +85,16 @@ and quoted_string = parse
 (* FIXME: what about actual newlines, tabs, etc.? 
    and what other characters may be escapes? *)
 and quoted_string_text buf = parse
-| [^'\\''"']* as chunk { Buffer.add_string buf chunk; quoted_string_text buf lexbuf }
-| '"'                  { Buffer.contents buf }
-| "\\n"                { Buffer.add_char buf '\n'; quoted_string_text buf lexbuf }
-| "\\t"                { Buffer.add_char buf '\t'; quoted_string_text buf lexbuf }
-| "\\\\"               { Buffer.add_char buf '\\'; quoted_string_text buf lexbuf }
+| [^'\\''"']* as chunk
+         { Buffer.add_string buf chunk; quoted_string_text buf lexbuf }
+| '"'    { Buffer.contents buf }
+| "\\n"  { Buffer.add_char buf '\n'; quoted_string_text buf lexbuf }
+| "\\t"  { Buffer.add_char buf '\t'; quoted_string_text buf lexbuf }
+| "\\\\" { Buffer.add_char buf '\\'; quoted_string_text buf lexbuf }
+| "\\\"" { Buffer.add_char buf '\"'; quoted_string_text buf lexbuf }
 | "\\x" (hex hex as code)
-                       { Buffer.add_char buf (Char.chr (Scanf.sscanf code "%x" (fun x -> x)));
-                         quoted_string_text buf lexbuf }
+         { Buffer.add_char buf (Char.chr (Scanf.sscanf code "%x" (fun x -> x)));
+           quoted_string_text buf lexbuf }
 
 and ws = parse
 | [' ''\t']+ { () }
@@ -249,6 +251,8 @@ let escape_string s =
   let b = Buffer.create (String.length s * 2) in
   for i = 0 to String.length s - 1 do
     match s.[i] with
+      | '\"' ->
+         Buffer.add_string b "\\\""
       | '\\' ->
          Buffer.add_string b "\\\\"
       | '\n' ->
