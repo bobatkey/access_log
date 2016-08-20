@@ -155,28 +155,32 @@ let dash_means_None = function
   | "-" -> None
   | str -> Some str
 
+let read_logline lexbuf =
+  let addr      = ipv4_address lexbuf in
+  let ()        = ws lexbuf in
+  let ()        = dash lexbuf in
+  let ()        = ws lexbuf in
+  let userid    = dash_means_None (non_ws lexbuf) in
+  let ()        = ws lexbuf in
+  let timestamp = datetime lexbuf in
+  let ()        = ws lexbuf in
+  let req       = parse_request_line (quoted_string lexbuf) in
+  let ()        = ws lexbuf in
+  let status    = status_code lexbuf in
+  let ()        = ws lexbuf in
+  let length    = natural_or_dash lexbuf in
+  let ()        = ws lexbuf in
+  let referrer  = quoted_string lexbuf |> dash_means_None in
+  let ()        = ws lexbuf in
+  let ua        = quoted_string lexbuf |> dash_means_None in
+  { addr; userid; timestamp; request_line = req; status
+  ; length; referrer; user_agent = ua }
+
 let logline lexbuf =
   try
-    let addr      = ipv4_address lexbuf in
-    let ()        = ws lexbuf in
-    let ()        = dash lexbuf in
-    let ()        = ws lexbuf in
-    let userid    = dash_means_None (non_ws lexbuf) in
-    let ()        = ws lexbuf in
-    let timestamp = datetime lexbuf in
-    let ()        = ws lexbuf in
-    let req       = parse_request_line (quoted_string lexbuf) in
-    let ()        = ws lexbuf in
-    let status    = status_code lexbuf in
-    let ()        = ws lexbuf in
-    let length    = natural_or_dash lexbuf in
-    let ()        = ws lexbuf in
-    let referrer  = quoted_string lexbuf |> dash_means_None in
-    let ()        = ws lexbuf in
-    let ua        = quoted_string lexbuf |> dash_means_None in
-    let ()        = newline lexbuf in
-    `Line { addr; userid; timestamp; request_line = req; status
-          ; length; referrer; user_agent = ua }
+    let line = read_logline lexbuf in
+    let ()   = newline lexbuf in
+    `Line line
   with
     | Failure _ ->
        let {Lexing.pos_lnum} = Lexing.lexeme_start_p lexbuf in
@@ -184,6 +188,13 @@ let logline lexbuf =
        `Parse_error_on_line (pos_lnum+1)
     | End_of_file ->
        `End_of_input
+
+let of_string str =
+  let lexbuf = Lexing.from_string str in
+  try `Line (read_logline lexbuf)
+  with
+    | Failure _   -> `Parse_error
+    | End_of_file -> `Parse_error
 
 let addr {addr} = addr
 let userid {userid} = userid

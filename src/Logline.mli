@@ -44,6 +44,8 @@ val logline :
   | `Parse_error_on_line of int
   | `End_of_input ]
 
+val of_string : string -> [ `Line of logline | `Parse_error ]
+
 val loglines : Lexing.lexbuf -> logline list * int list
 
 val loglines_of_file : string -> logline list * int list
