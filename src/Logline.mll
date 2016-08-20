@@ -1,4 +1,10 @@
 {
+type request_line =
+  { meth         : Cohttp.Code.meth
+  ; resource     : string
+  ; http_version : int * int
+  }
+
 let month_of_string = function
   | "Jan" -> 1
   | "Feb" -> 2
@@ -114,10 +120,11 @@ and until_newline = parse
 
 and request_line = parse
 |     ([^' ']+ as method_str)
-  ' ' ([^' ']+ as target)
+  ' ' ([^' ']+ as resource)
   ' ' "HTTP/" (digit as major) '.' (digit as minor)
-  { (Cohttp.Code.method_of_string method_str, target,
-     (int_of_char major, int_of_char minor)) }
+  { { meth = Cohttp.Code.method_of_string method_str
+    ; resource
+    ; http_version = (int_of_char major, int_of_char minor) } }
 
 {
 let status_code lexbuf =
@@ -127,7 +134,7 @@ type logline =
   { addr         : Ipaddr.V4.t
   ; userid       : string option
   ; timestamp    : Ptime.t
-  ; request_line : [ `Parsed of Cohttp.Code.meth * string * (int * int) | `Unparsed of string ]
+  ; request_line : [ `Parsed of request_line | `Unparsed of string ]
   ; status       : Cohttp.Code.status_code
   ; length       : int
   ; referrer     : string option
@@ -136,7 +143,7 @@ type logline =
 
 let make ~addr ?userid ~timestamp ~meth ~resource ?(http_version=(1,1)) ~status ~length ?referrer ?user_agent () =
   { addr; userid; timestamp
-  ; request_line = `Parsed (meth, resource, http_version)
+  ; request_line = `Parsed { meth; resource; http_version }
   ; status; length; referrer; user_agent
   }
 
@@ -272,10 +279,10 @@ let output ?tz_offset_s ch logline =
     (none_means_dash logline.userid);
   output_timestamp ?tz_offset_s ch logline.timestamp;
   (match logline.request_line with
-    | `Parsed (meth, path, (major,minor)) ->
+    | `Parsed {meth; resource; http_version=(major,minor)} ->
        Printf.fprintf ch " \"%s %s HTTP/%d.%d\" "
          (Cohttp.Code.string_of_method meth)
-         (escape_string path)
+         (escape_string resource)
          major
          minor
     | `Unparsed str ->

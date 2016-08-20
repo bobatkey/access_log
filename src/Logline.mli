@@ -1,8 +1,14 @@
+type request_line =
+  { meth         : Cohttp.Code.meth
+  ; resource     : string
+  ; http_version : int * int
+  }
+
 type logline =
   { addr         : Ipaddr.V4.t
   ; userid       : string option
   ; timestamp    : Ptime.t
-  ; request_line : [ `Parsed of Cohttp.Code.meth * string * (int * int) | `Unparsed of string ]
+  ; request_line : [ `Parsed of request_line | `Unparsed of string ]
   ; status       : Cohttp.Code.status_code
   ; length       : int
   ; referrer     : string option
@@ -26,7 +32,7 @@ val make :
 val addr : logline -> Ipaddr.V4.t
 val userid : logline -> string option
 val timestamp : logline -> Ptime.t
-val request_line : logline -> [ `Parsed of Cohttp.Code.meth * string * (int * int) | `Unparsed of string ]
+val request_line : logline -> [ `Parsed of request_line | `Unparsed of string ]
 val status : logline -> Cohttp.Code.status_code
 val length : logline -> int
 val referrer : logline -> string option
