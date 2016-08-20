@@ -51,3 +51,7 @@ val loglines : Lexing.lexbuf -> logline list * int list
 val loglines_of_file : string -> logline list * int list
 
 val output : ?tz_offset_s:int -> out_channel -> logline -> unit
+
+val to_string : ?tz_offset_s:int -> logline -> string
+
+val pp : Format.formatter -> logline -> unit
