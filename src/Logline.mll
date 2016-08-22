@@ -18,9 +18,14 @@ let month_of_string = function
   | "Oct" -> 10
   | "Nov" -> 11
   | "Dec" -> 12
-  | _     -> assert false
+  | _     -> invalid_arg "month_of_string"
 
-let int_of_char c = Char.code c - Char.code '0'
+let int_of_hexdigit c =
+  match c with
+    | '0'..'9' -> Char.code c - Char.code '0'
+    | 'a'..'f' -> Char.code c - Char.code 'a' + 10
+    | 'A'..'F' -> Char.code c - Char.code 'A' + 10
+    | _        -> invalid_arg "int_of_hexdigit"
 }
 
 let digit = ['0'-'9']
@@ -40,7 +45,7 @@ let month =
   "Jan" | "Feb" | "Mar" | "Apr" | "May" | "Jun"
 | "Jul" | "Aug" | "Sep" | "Oct" | "Nov" | "Dec"
 
-let hex = digit | ['A'-'Z''a'-'z']
+let hex = digit | ['A'-'F''a'-'f']
 
 (* Parsing rules *)
 
@@ -98,9 +103,12 @@ and quoted_string_text buf = parse
 | "\\t"  { Buffer.add_char buf '\t'; quoted_string_text buf lexbuf }
 | "\\\\" { Buffer.add_char buf '\\'; quoted_string_text buf lexbuf }
 | "\\\"" { Buffer.add_char buf '\"'; quoted_string_text buf lexbuf }
-| "\\x" (hex hex as code)
-         { Buffer.add_char buf (Char.chr (Scanf.sscanf code "%x" (fun x -> x)));
-           quoted_string_text buf lexbuf }
+| "\\x" (hex as hi) (hex as lo)
+    { let hi = int_of_hexdigit hi
+      and lo = int_of_hexdigit lo in
+      let c  = Char.chr (hi * 16 + lo) in
+      Buffer.add_char buf c;
+      quoted_string_text buf lexbuf }
 
 and ws = parse
 | [' ''\t']+ { () }
