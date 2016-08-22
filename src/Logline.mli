@@ -1,7 +1,7 @@
 type request_line =
   { meth         : Cohttp.Code.meth
   ; resource     : string
-  ; http_version : int * int
+  ; http_version : Cohttp.Code.version
   }
 
 type logline =
@@ -21,7 +21,7 @@ val make :
   timestamp:Ptime.t ->
   meth:Cohttp.Code.meth ->
   resource:string ->
-  ?http_version:int * int ->
+  ?http_version:Cohttp.Code.version ->
   status:Cohttp.Code.status_code ->
   length:int ->
   ?referrer:string ->

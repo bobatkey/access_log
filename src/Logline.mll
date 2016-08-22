@@ -2,7 +2,7 @@
 type request_line =
   { meth         : Cohttp.Code.meth
   ; resource     : string
-  ; http_version : int * int
+  ; http_version : Cohttp.Code.version
   }
 
 let month_of_string = function
@@ -121,10 +121,11 @@ and until_newline = parse
 and request_line = parse
 |     ([^' ']+ as method_str)
   ' ' ([^' ']+ as resource)
-  ' ' "HTTP/" (digit as major) '.' (digit as minor)
+  ' ' ([^' ']+ as http_version)
   { { meth = Cohttp.Code.method_of_string method_str
     ; resource
-    ; http_version = (int_of_char major, int_of_char minor) } }
+    ; http_version = Cohttp.Code.version_of_string http_version
+    } }
 
 {
 let status_code lexbuf =
@@ -141,7 +142,7 @@ type logline =
   ; user_agent   : string option
   }
 
-let make ~addr ?userid ~timestamp ~meth ~resource ?(http_version=(1,1)) ~status ~length ?referrer ?user_agent () =
+let make ~addr ?userid ~timestamp ~meth ~resource ?(http_version=`HTTP_1_1) ~status ~length ?referrer ?user_agent () =
   { addr; userid; timestamp
   ; request_line = `Parsed { meth; resource; http_version }
   ; status; length; referrer; user_agent
@@ -292,14 +293,12 @@ let output_generic ?tz_offset_s emit logline =
   emit (string_of_timestamp ?tz_offset_s logline.timestamp);
   emit " \"";
   (match logline.request_line with
-    | `Parsed {meth; resource; http_version=(major,minor)} ->
+    | `Parsed {meth; resource; http_version} ->
        emit (Cohttp.Code.string_of_method meth);
        emit " ";
        emit (escape_string resource);
-       emit " HTTP/";
-       emit (string_of_int major);
-       emit ".";
-       emit (string_of_int minor);
+       emit " ";
+       emit (Cohttp.Code.string_of_version http_version)
     | `Unparsed str ->
        emit (escape_string str));
   emit "\" ";
