@@ -1,0 +1,9 @@
+S .
+B _build
+S ../src
+B ../src/_build
+PKG ipaddr
+PKG ptime
+PKG ptime.clock.os
+PKG cohttp
+PKG re
