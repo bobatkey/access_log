@@ -82,10 +82,10 @@ and datetime = parse
         | None       -> failwith ""
         | Some ptime -> ptime }
 
-and natural = parse
+and posint = parse
 | digit+ as digits { int_of_string digits }
 
-and natural_or_dash = parse
+and posint_or_dash = parse
 | digit+ as digits { int_of_string digits }
 | '-'              { 0 }
 
@@ -137,7 +137,7 @@ and request_line = parse
 
 {
 let status_code lexbuf =
-  Cohttp.Code.status_of_code (natural lexbuf)
+  Cohttp.Code.status_of_code (posint lexbuf)
 
 type logline =
   { addr         : Ipaddr.V4.t
@@ -177,7 +177,7 @@ let read_logline lexbuf =
   let ()        = ws lexbuf in
   let status    = status_code lexbuf in
   let ()        = ws lexbuf in
-  let length    = natural_or_dash lexbuf in
+  let length    = posint_or_dash lexbuf in
   let ()        = ws lexbuf in
   let referrer  = quoted_string lexbuf |> dash_means_None in
   let ()        = ws lexbuf in
