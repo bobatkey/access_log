@@ -156,7 +156,7 @@ let make ~addr ?userid ~timestamp ~meth ~resource ?(http_version=`HTTP_1_1) ~sta
   ; status; length; referrer; user_agent
   }
 
-let parse_request_line str =
+let request_line_of_string str =
   let lb = Lexing.from_string str in
   try `Parsed (request_line lb) with Failure _ -> `Unparsed str
 
@@ -173,7 +173,7 @@ let read_logline lexbuf =
   let ()        = ws lexbuf in
   let timestamp = datetime lexbuf in
   let ()        = ws lexbuf in
-  let req       = parse_request_line (quoted_string lexbuf) in
+  let req       = request_line_of_string (quoted_string lexbuf) in
   let ()        = ws lexbuf in
   let status    = status_code lexbuf in
   let ()        = ws lexbuf in
@@ -292,6 +292,13 @@ let escape_string s =
          Buffer.add_char b c
   done;
   Buffer.contents b
+
+let string_of_request_line {meth; resource; http_version} =
+  Cohttp.Code.string_of_method meth
+  ^" "
+  ^resource
+  ^" "
+  ^Cohttp.Code.string_of_version http_version
 
 let output_generic ?tz_offset_s emit logline =
   emit (Ipaddr.V4.to_string logline.addr);

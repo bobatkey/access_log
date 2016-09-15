@@ -1,8 +1,18 @@
+
+(**{2 Request lines} *)
+
 type request_line =
   { meth         : Cohttp.Code.meth
   ; resource     : string
   ; http_version : Cohttp.Code.version
   }
+
+val string_of_request_line : request_line -> string
+
+(* FIXME: ought probably just be option return type *)
+val request_line_of_string : string -> [ `Parsed of request_line | `Unparsed of string ]
+
+(**{2 Log entries} *)
 
 type logline =
   { addr         : Ipaddr.V4.t
