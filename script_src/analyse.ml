@@ -59,12 +59,12 @@ let renderer (time, addr, host, path) =
     (opt_default (Ipaddr.V4.to_string addr) host)
     path
 
-let of_logfile filename : Logline.logline gen =
+let of_logfile filename : Logline.entry gen =
   fun k ->
     let ch = open_in filename in
     let lb = Lexing.from_channel ch in
     let rec loop () =
-      match Logline.logline lb with
+      match Logline.Entry.read_entry lb with
         | `Parse_error_on_line _ -> loop ()
         | `End_of_input -> ()
         | `Line l -> k l; loop ()
@@ -75,7 +75,7 @@ let loglines_of_stdin =
   fun k ->
     let lb = Lexing.from_channel stdin in
     let rec loop () =
-      match Logline.logline lb with
+      match Logline.Entry.read_entry lb with
         | `Parse_error_on_line _ -> loop ()
         | `End_of_input -> ()
         | `Line l -> k l; loop ()

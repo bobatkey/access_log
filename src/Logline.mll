@@ -5,6 +5,19 @@ type request_line =
   ; http_version : Cohttp.Code.version
   }
 
+type entry =
+  { addr         : Ipaddr.V4.t
+  ; userid       : string option
+  ; timestamp    : Ptime.t
+  ; request_line : [ `Parsed of request_line | `Unparsed of string ]
+  ; status       : Cohttp.Code.status_code
+  ; length       : int
+  ; referrer     : string option
+  ; user_agent   : string option
+  }
+
+module Lexer = struct
+
 let month_of_string = function
   | "Jan" -> 1
   | "Feb" -> 2
@@ -136,210 +149,228 @@ and request_line = parse
     } }
 
 {
-let status_code lexbuf =
-  Cohttp.Code.status_of_code (posint lexbuf)
+  let status_code lexbuf =
+    Cohttp.Code.status_of_code (posint lexbuf)
 
-type logline =
-  { addr         : Ipaddr.V4.t
-  ; userid       : string option
-  ; timestamp    : Ptime.t
-  ; request_line : [ `Parsed of request_line | `Unparsed of string ]
-  ; status       : Cohttp.Code.status_code
-  ; length       : int
-  ; referrer     : string option
-  ; user_agent   : string option
-  }
+  let dash_means_None = function
+    | "-" -> None
+    | str -> Some str
+end
 
-let make ~addr ?userid ~timestamp ~meth ~resource ?(http_version=`HTTP_1_1) ~status ~length ?referrer ?user_agent () =
-  { addr; userid; timestamp
-  ; request_line = `Parsed { meth; resource; http_version }
-  ; status; length; referrer; user_agent
-  }
+module RequestLine = struct
+  type t = request_line
 
-let request_line_of_string str =
-  let lb = Lexing.from_string str in
-  try `Parsed (request_line lb) with Failure _ -> `Unparsed str
+  let make ~meth ~resource ?(http_version=`HTTP_1_1) () =
+    { meth; resource; http_version }
 
-let dash_means_None = function
-  | "-" -> None
-  | str -> Some str
+  let of_string str =
+    let lb = Lexing.from_string str in
+    try Some (Lexer.request_line lb) with Failure _ -> None
 
-let read_logline lexbuf =
-  let addr      = ipv4_address lexbuf in
-  let ()        = ws lexbuf in
-  let ()        = dash lexbuf in
-  let ()        = ws lexbuf in
-  let userid    = dash_means_None (non_ws lexbuf) in
-  let ()        = ws lexbuf in
-  let timestamp = datetime lexbuf in
-  let ()        = ws lexbuf in
-  let req       = request_line_of_string (quoted_string lexbuf) in
-  let ()        = ws lexbuf in
-  let status    = status_code lexbuf in
-  let ()        = ws lexbuf in
-  let length    = posint_or_dash lexbuf in
-  let ()        = ws lexbuf in
-  let referrer  = quoted_string lexbuf |> dash_means_None in
-  let ()        = ws lexbuf in
-  let ua        = quoted_string lexbuf |> dash_means_None in
-  { addr; userid; timestamp; request_line = req; status
-  ; length; referrer; user_agent = ua }
+  let to_string {meth; resource; http_version} =
+    Cohttp.Code.string_of_method meth
+    ^" "
+    ^resource
+    ^" "
+    ^Cohttp.Code.string_of_version http_version
 
-let logline lexbuf =
-  try
-    let line = read_logline lexbuf in
-    let ()   = newline lexbuf in
-    `Line line
-  with
-    | Failure _ ->
-       let {Lexing.pos_lnum} = Lexing.lexeme_start_p lexbuf in
-       let () = until_newline lexbuf in
-       `Parse_error_on_line (pos_lnum+1)
-    | End_of_file ->
-       `End_of_input
+  let meth {meth} = meth
 
-let of_string str =
-  let lexbuf = Lexing.from_string str in
-  try `Line (read_logline lexbuf)
-  with
-    | Failure _   -> `Parse_error
-    | End_of_file -> `Parse_error
+  let resource {resource} = resource
 
-let addr {addr} = addr
-let userid {userid} = userid
-let timestamp {timestamp} = timestamp
-let request_line {request_line} = request_line
-let status {status} = status
-let length {length} = length
-let referrer {referrer} = referrer
-let user_agent {user_agent} = user_agent
+  let http_version {http_version} = http_version
+end
 
-let loglines lb =
-  let rec loop errors accum =
-    match logline lb with
-      | `End_of_input             -> List.rev accum, List.rev errors
-      | `Parse_error_on_line lnum -> loop (lnum::errors) accum
-      | `Line line                -> loop errors (line::accum)
-  in
-  loop [] []
+module Entry = struct
 
-let loglines_of_file filename =
-  let ch = open_in filename in
-  try
-    let lb = Lexing.from_channel ch in
-    let l  = loglines lb in
-    close_in ch; l
-  with e -> close_in ch; raise e
+  let make ~addr ?userid ~timestamp ~request_line ~status ~length ?referrer ?user_agent () =
+    { addr; userid; timestamp
+    ; request_line
+    ; status; length; referrer; user_agent
+    }
 
-let none_means_dash = function
-  | None -> "-"
-  | Some str -> str
+  let addr {addr} = addr
 
-let string_of_month = function
-  | 1  -> "Jan"
-  | 2  -> "Feb"
-  | 3  -> "Mar"
-  | 4  -> "Apr"
-  | 5  -> "May"
-  | 6  -> "Jun"
-  | 7  -> "Jul"
-  | 8  -> "Aug"
-  | 9  -> "Sep"
-  | 10 -> "Oct"
-  | 11 -> "Nov"
-  | 12 -> "Dec"
-  | _  -> assert false
+  let userid {userid} = userid
 
-let string_of_timestamp ?tz_offset_s ptime =
-  let (year, month, day), ((hours, minutes, seconds), tz_offset_s) =
-    Ptime.to_date_time ?tz_offset_s ptime
-  in
-  let tz_sign, tz_h, tz_m =
-    if tz_offset_s mod 60 = 0 then
-      let tz_offset_m = abs tz_offset_s / 60 in
-      let tz_offset_h = tz_offset_m / 60 in
-      let tz_sign = if tz_offset_s < 0 then '-' else '+' in
-      tz_sign, tz_offset_h, tz_offset_m mod 60
-    else
-      '+', 0, 0
-  in
-  Printf.sprintf "[%02d/%s/%04d:%02d:%02d:%02d %c%02d%02d]"
-    day
-    (string_of_month month)
-    year
-    hours
-    minutes
-    seconds
-    tz_sign
-    tz_h
-    tz_m
+  let timestamp {timestamp} = timestamp
 
-let escape_string s =
-  let b = Buffer.create (String.length s * 2) in
-  for i = 0 to String.length s - 1 do
-    match s.[i] with
-      | '\"' ->
-         Buffer.add_string b "\\\""
-      | '\\' ->
-         Buffer.add_string b "\\\\"
-      | '\n' ->
-         Buffer.add_string b "\\n"
-      | '\t' ->
-         Buffer.add_string b "\\t"
-      | '\x00' .. '\x1f' | '\x80' .. '\xff' ->
-         Printf.bprintf b "\\x%02X" (Char.code s.[i])
-      | c ->
-         Buffer.add_char b c
-  done;
-  Buffer.contents b
+  let request_line {request_line} = request_line
 
-let string_of_request_line {meth; resource; http_version} =
-  Cohttp.Code.string_of_method meth
-  ^" "
-  ^resource
-  ^" "
-  ^Cohttp.Code.string_of_version http_version
+  let status {status} = status
 
-let output_generic ?tz_offset_s emit logline =
-  emit (Ipaddr.V4.to_string logline.addr);
-  emit " - ";
-  emit (none_means_dash logline.userid);
-  emit " ";
-  emit (string_of_timestamp ?tz_offset_s logline.timestamp);
-  emit " \"";
-  (match logline.request_line with
-    | `Parsed {meth; resource; http_version} ->
-       emit (Cohttp.Code.string_of_method meth);
-       emit " ";
-       emit (escape_string resource);
-       emit " ";
-       emit (Cohttp.Code.string_of_version http_version)
-    | `Unparsed str ->
-       emit (escape_string str));
-  emit "\" ";
-  emit (string_of_int (Cohttp.Code.code_of_status logline.status));
-  emit " ";
-  emit (string_of_int logline.length);
-  emit " \"";
-  emit (match logline.referrer with None -> "-"
-                                  | Some s -> escape_string s);
-  emit "\" \"";
-  emit (match logline.user_agent with None -> "-"
+  let length {length} = length
+
+  let referrer {referrer} = referrer
+
+  let user_agent {user_agent} = user_agent
+
+  let read_logline_exn lexbuf =
+    let addr      = Lexer.ipv4_address lexbuf in
+    let ()        = Lexer.ws lexbuf in
+    let ()        = Lexer.dash lexbuf in
+    let ()        = Lexer.ws lexbuf in
+    let userid    = Lexer.dash_means_None (Lexer.non_ws lexbuf) in
+    let ()        = Lexer.ws lexbuf in
+    let timestamp = Lexer.datetime lexbuf in
+    let ()        = Lexer.ws lexbuf in
+    let req       =
+      let str = Lexer.quoted_string lexbuf in
+      match RequestLine.of_string str with
+        | None     -> `Unparsed str
+        | Some req -> `Parsed req
+    in
+    let ()        = Lexer.ws lexbuf in
+    let status    = Lexer.status_code lexbuf in
+    let ()        = Lexer.ws lexbuf in
+    let length    = Lexer.posint_or_dash lexbuf in
+    let ()        = Lexer.ws lexbuf in
+    let referrer  = Lexer.quoted_string lexbuf |> Lexer.dash_means_None in
+    let ()        = Lexer.ws lexbuf in
+    let ua        = Lexer.quoted_string lexbuf |> Lexer.dash_means_None in
+    { addr; userid; timestamp; request_line = req; status
+    ; length; referrer; user_agent = ua }
+
+  let read_entry lexbuf =
+    try
+      let line = read_logline_exn lexbuf in
+      let ()   = Lexer.newline lexbuf in
+      `Line line
+    with
+      | Failure _ ->
+         let {Lexing.pos_lnum} = Lexing.lexeme_start_p lexbuf in
+         let () = Lexer.until_newline lexbuf in
+         `Parse_error_on_line (pos_lnum+1)
+      | End_of_file ->
+         `End_of_input
+
+  let of_string str =
+    let lexbuf = Lexing.from_string str in
+    try `Line (read_logline_exn lexbuf)
+    with
+      | Failure _   -> `Parse_error
+      | End_of_file -> `Parse_error
+
+  let read_until_eof lb =
+    let rec loop errors accum =
+      match read_entry lb with
+        | `End_of_input             -> List.rev accum, List.rev errors
+        | `Parse_error_on_line lnum -> loop (lnum::errors) accum
+        | `Line line                -> loop errors (line::accum)
+    in
+    loop [] []
+
+  let of_file filename =
+    let ch = open_in filename in
+    try
+      let lb = Lexing.from_channel ch in
+      let l  = read_until_eof lb in
+      close_in ch; l
+    with e -> close_in ch; raise e
+
+  let none_means_dash = function
+    | None -> "-"
+    | Some str -> str
+
+  let string_of_month = function
+    | 1  -> "Jan"
+    | 2  -> "Feb"
+    | 3  -> "Mar"
+    | 4  -> "Apr"
+    | 5  -> "May"
+    | 6  -> "Jun"
+    | 7  -> "Jul"
+    | 8  -> "Aug"
+    | 9  -> "Sep"
+    | 10 -> "Oct"
+    | 11 -> "Nov"
+    | 12 -> "Dec"
+    | _  -> assert false
+
+  let string_of_timestamp ?tz_offset_s ptime =
+    let (year, month, day), ((hours, minutes, seconds), tz_offset_s) =
+      Ptime.to_date_time ?tz_offset_s ptime
+    in
+    let tz_sign, tz_h, tz_m =
+      if tz_offset_s mod 60 = 0 then
+        let tz_offset_m = abs tz_offset_s / 60 in
+        let tz_offset_h = tz_offset_m / 60 in
+        let tz_sign = if tz_offset_s < 0 then '-' else '+' in
+        tz_sign, tz_offset_h, tz_offset_m mod 60
+      else
+        '+', 0, 0
+    in
+    Printf.sprintf "[%02d/%s/%04d:%02d:%02d:%02d %c%02d%02d]"
+      day
+      (string_of_month month)
+      year
+      hours
+      minutes
+      seconds
+      tz_sign
+      tz_h
+      tz_m
+
+  let escape_string s =
+    let b = Buffer.create (String.length s * 2) in
+    for i = 0 to String.length s - 1 do
+      match s.[i] with
+        | '\"' ->
+           Buffer.add_string b "\\\""
+        | '\\' ->
+           Buffer.add_string b "\\\\"
+        | '\n' ->
+           Buffer.add_string b "\\n"
+        | '\t' ->
+           Buffer.add_string b "\\t"
+        | '\x00' .. '\x1f' | '\x80' .. '\xff' ->
+           Printf.bprintf b "\\x%02X" (Char.code s.[i])
+        | c ->
+           Buffer.add_char b c
+    done;
+    Buffer.contents b
+
+  let output_generic ?tz_offset_s emit logline =
+    emit (Ipaddr.V4.to_string logline.addr);
+    emit " - ";
+    emit (none_means_dash logline.userid);
+    emit " ";
+    emit (string_of_timestamp ?tz_offset_s logline.timestamp);
+    emit " \"";
+    (match logline.request_line with
+      | `Parsed {meth; resource; http_version} ->
+         emit (Cohttp.Code.string_of_method meth);
+         emit " ";
+         emit (escape_string resource);
+         emit " ";
+         emit (Cohttp.Code.string_of_version http_version)
+      | `Unparsed str ->
+         emit (escape_string str));
+    emit "\" ";
+    emit (string_of_int (Cohttp.Code.code_of_status logline.status));
+    emit " ";
+    emit (string_of_int logline.length);
+    emit " \"";
+    emit (match logline.referrer with None -> "-"
                                     | Some s -> escape_string s);
-  emit "\""
+    emit "\" \"";
+    emit (match logline.user_agent with None -> "-"
+                                      | Some s -> escape_string s);
+    emit "\""
 
-let output ?tz_offset_s ch logline =
-  output_generic ?tz_offset_s (output_string ch) logline;
-  output_char ch '\n'
+  let output ?tz_offset_s ch logline =
+    output_generic ?tz_offset_s (output_string ch) logline;
+    output_char ch '\n'
 
-let to_string ?tz_offset_s logline =
-  let b = Buffer.create 128 in
-  output_generic ?tz_offset_s (Buffer.add_string b) logline;
-  Buffer.contents b
+  let to_string ?tz_offset_s logline =
+    let b = Buffer.create 128 in
+    output_generic ?tz_offset_s (Buffer.add_string b) logline;
+    Buffer.contents b
 
-let pp_hum ?tz_offset_s () fmt logline =
-  output_generic ?tz_offset_s (Format.pp_print_string fmt) logline
+  let pp_hum ?tz_offset_s () fmt logline =
+    output_generic ?tz_offset_s (Format.pp_print_string fmt) logline
 
-let pp fmt logline =
-  pp_hum ~tz_offset_s:0 () fmt logline
+  let pp fmt logline =
+    pp_hum ~tz_offset_s:0 () fmt logline
+end
 }

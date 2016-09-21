@@ -7,14 +7,30 @@ type request_line =
   ; http_version : Cohttp.Code.version
   }
 
-val string_of_request_line : request_line -> string
+module RequestLine : sig
+  type t = request_line
 
-(* FIXME: ought probably just be option return type *)
-val request_line_of_string : string -> [ `Parsed of request_line | `Unparsed of string ]
+  val make :
+    meth:Cohttp.Code.meth ->
+    resource:string ->
+    ?http_version:Cohttp.Code.version ->
+    unit ->
+    request_line
+
+  val to_string : request_line -> string
+
+  val of_string : string -> request_line option
+
+  val meth : request_line -> Cohttp.Code.meth
+
+  val resource : request_line -> string
+
+  val http_version : request_line -> Cohttp.Code.version
+end
 
 (**{2 Log entries} *)
 
-type logline =
+type entry =
   { addr         : Ipaddr.V4.t
   ; userid       : string option
   ; timestamp    : Ptime.t
@@ -25,43 +41,51 @@ type logline =
   ; user_agent   : string option
   }
 
-val make :
-  addr:Ipaddr.V4.t ->
-  ?userid:string ->
-  timestamp:Ptime.t ->
-  meth:Cohttp.Code.meth ->
-  resource:string ->
-  ?http_version:Cohttp.Code.version ->
-  status:Cohttp.Code.status_code ->
-  length:int ->
-  ?referrer:string ->
-  ?user_agent:string ->
-  unit ->
-  logline
+module Entry : sig
 
-val addr : logline -> Ipaddr.V4.t
-val userid : logline -> string option
-val timestamp : logline -> Ptime.t
-val request_line : logline -> [ `Parsed of request_line | `Unparsed of string ]
-val status : logline -> Cohttp.Code.status_code
-val length : logline -> int
-val referrer : logline -> string option
-val user_agent : logline -> string option
+  val make :
+    addr:Ipaddr.V4.t ->
+    ?userid:string ->
+    timestamp:Ptime.t ->
+    request_line:[ `Parsed of request_line | `Unparsed of string ] ->
+    status:Cohttp.Code.status_code ->
+    length:int ->
+    ?referrer:string ->
+    ?user_agent:string ->
+    unit ->
+    entry
 
-val logline :
-  Lexing.lexbuf ->
-  [ `Line of logline
-  | `Parse_error_on_line of int
-  | `End_of_input ]
+  val addr : entry -> Ipaddr.V4.t
 
-val of_string : string -> [ `Line of logline | `Parse_error ]
+  val userid : entry -> string option
 
-val loglines : Lexing.lexbuf -> logline list * int list
+  val timestamp : entry -> Ptime.t
 
-val loglines_of_file : string -> logline list * int list
+  val request_line : entry -> [ `Parsed of request_line | `Unparsed of string ]
 
-val output : ?tz_offset_s:int -> out_channel -> logline -> unit
+  val status : entry -> Cohttp.Code.status_code
 
-val to_string : ?tz_offset_s:int -> logline -> string
+  val length : entry -> int
 
-val pp : Format.formatter -> logline -> unit
+  val referrer : entry -> string option
+
+  val user_agent : entry -> string option
+
+  val read_entry :
+    Lexing.lexbuf ->
+    [ `Line of entry
+    | `Parse_error_on_line of int
+    | `End_of_input ]
+
+  val read_until_eof : Lexing.lexbuf -> entry list * int list
+
+  val of_string : string -> [ `Line of entry | `Parse_error ]
+
+  val of_file : string -> entry list * int list
+
+  val output : ?tz_offset_s:int -> out_channel -> entry -> unit
+
+  val to_string : ?tz_offset_s:int -> entry -> string
+
+  val pp : Format.formatter -> entry -> unit
+end
