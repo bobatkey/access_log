@@ -11,7 +11,7 @@ include build-support/OCamlSrcs.makefile
 ######################################################################
 .PHONY: all
 
-all: src/_build/logparse.cma analyse
+all: src/_build/access_log.cma analyse
 
 analyse: script_src/_build/native_bin/analyse
 	cp $< $@

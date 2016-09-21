@@ -29,8 +29,8 @@ let extensions =
 let opt_default d = function None -> d | Some s -> s
 
 let analyse_entry = function
-  | { Logline.request_line =
-        `Parsed { Logline.meth = `GET; resource }
+  | { Access_log.request_line =
+        `Parsed { Access_log.meth = `GET; resource }
     ; status
     ; addr
     ; user_agent
@@ -59,12 +59,12 @@ let renderer (time, addr, host, path) =
     (opt_default (Ipaddr.V4.to_string addr) host)
     path
 
-let of_logfile filename : Logline.entry gen =
+let of_logfile filename : Access_log.entry gen =
   fun k ->
     let ch = open_in filename in
     let lb = Lexing.from_channel ch in
     let rec loop () =
-      match Logline.Entry.read_entry lb with
+      match Access_log.Entry.read_entry lb with
         | `Parse_error_on_line _ -> loop ()
         | `End_of_input -> ()
         | `Line l -> k l; loop ()
@@ -75,7 +75,7 @@ let loglines_of_stdin =
   fun k ->
     let lb = Lexing.from_channel stdin in
     let rec loop () =
-      match Logline.Entry.read_entry lb with
+      match Access_log.Entry.read_entry lb with
         | `Parse_error_on_line _ -> loop ()
         | `End_of_input -> ()
         | `Line l -> k l; loop ()
