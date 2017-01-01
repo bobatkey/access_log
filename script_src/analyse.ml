@@ -1,3 +1,5 @@
+open Access_log
+
 let host_cache = Hashtbl.create 128
 
 let gethostbyaddr addr =
@@ -59,28 +61,27 @@ let renderer (time, addr, host, path) =
     (opt_default (Ipaddr.V4.to_string addr) host)
     path
 
-let of_logfile filename : Access_log.entry gen =
+let of_logfile filename : access_log_entry gen =
   fun k ->
     let ch = open_in filename in
     let lb = Lexing.from_channel ch in
     let rec loop () =
-      match Access_log.Entry.read_entry lb with
+      match Entry.read_entry lb with
         | `Parse_error_on_line _ -> loop ()
         | `End_of_input -> ()
         | `Line l -> k l; loop ()
     in
     try loop (); close_in ch with e -> close_in ch; raise e
 
-let loglines_of_stdin =
-  fun k ->
-    let lb = Lexing.from_channel stdin in
-    let rec loop () =
-      match Access_log.Entry.read_entry lb with
-        | `Parse_error_on_line _ -> loop ()
-        | `End_of_input -> ()
-        | `Line l -> k l; loop ()
-    in
-    loop ()
+let loglines_of_stdin k =
+  let lb = Lexing.from_channel stdin in
+  let rec loop () =
+    match Entry.read_entry lb with
+      | `Parse_error_on_line _ -> loop ()
+      | `End_of_input -> ()
+      | `Line l -> k l; loop ()
+  in
+  loop ()
 
 let sink_to f g = g f
 

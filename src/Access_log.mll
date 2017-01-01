@@ -5,7 +5,7 @@ type request_line =
   ; http_version : Cohttp.Code.version
   }
 
-type entry =
+type access_log_entry =
   { addr         : Ipaddr.V4.t
   ; userid       : string option
   ; timestamp    : Ptime.t
@@ -96,10 +96,10 @@ and datetime = parse
         | Some ptime -> ptime }
 
 and posint = parse
-| digit+ as digits { int_of_string digits }
+| digit+ as digits { int_of_string digits (* FIXME: overflow? *)}
 
 and posint_or_dash = parse
-| digit+ as digits { int_of_string digits }
+| digit+ as digits { int_of_string digits (* FIXME: overflow? *)}
 | '-'              { 0 }
 
 and quoted_string = parse
@@ -163,6 +163,17 @@ module RequestLine = struct
   let make ~meth ~resource ?(http_version=`HTTP_1_1) () =
     { meth; resource; http_version }
 
+  let compare a b =
+    match Cohttp.Code.compare_method a.meth b.meth with
+      | 0 ->
+         (match String.compare a.resource b.resource with
+           | 0 -> Cohttp.Code.compare_version a.http_version b.http_version
+           | c -> c)
+      | c -> c
+
+  let equal a b =
+    compare a b = 0
+  
   let of_string str =
     let lb = Lexing.from_string str in
     try Some (Lexer.request_line lb) with Failure _ -> None
@@ -183,6 +194,8 @@ end
 
 module Entry = struct
 
+  type t = access_log_entry
+  
   let make ~addr ?userid ~timestamp ~request_line ~status ~length ?referrer ?user_agent () =
     { addr; userid; timestamp
     ; request_line
