@@ -1,21 +1,18 @@
 .DEFAULT_GOAL := all
 
-######################################################################
+.PHONY: all lib native
 
-SRCDIR := src
-include build-support/OCamlSrcs.makefile
+OCB := ocamlbuild -use-ocamlfind -I src -I script_src
 
-SRCDIR := script_src
-include build-support/OCamlSrcs.makefile
+all: lib native
 
-######################################################################
-.PHONY: all
+lib:
+	$(OCB) access_log.cma access_log.cmxa
 
-all: src/_build/access_log.cma analyse
-
-analyse: script_src/_build/native_bin/analyse
-	cp $< $@
+native:
+	$(OCB) analyse.native
 
 clean:
-	rm -rf $(BUILDDIRS)
-	rm -f analyse
+	rm -rf _build
+	rm -f analyse.byte
+	rm -f analyse.native

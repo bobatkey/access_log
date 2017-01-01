@@ -1,0 +1,2 @@
+true: package(ptime), package(cohttp), package(ipaddr)
+<script_src/analyse.*>: package(ptime.clock.os)
