@@ -158,22 +158,14 @@ and request_line = parse
 end
 
 module RequestLine = struct
-  type t = request_line
+  type t = request_line =
+    { meth         : Cohttp.Code.meth
+          [@compare Cohttp.Code.compare_method]
+          [@equal (=)]
+    ; resource     : string
+    ; http_version : Cohttp.Code.version [@equal (=)] [@default `HTTP_1_1]
+    } [@@deriving fields, ord, eq, make]
 
-  let make ~meth ~resource ?(http_version=`HTTP_1_1) () =
-    { meth; resource; http_version }
-
-  let compare a b =
-    match Cohttp.Code.compare_method a.meth b.meth with
-      | 0 ->
-         (match String.compare a.resource b.resource with
-           | 0 -> Cohttp.Code.compare_version a.http_version b.http_version
-           | c -> c)
-      | c -> c
-
-  let equal a b =
-    compare a b = 0
-  
   let of_string str =
     let lb = Lexing.from_string str in
     try Some (Lexer.request_line lb) with Failure _ -> None
@@ -184,39 +176,20 @@ module RequestLine = struct
     ^resource
     ^" "
     ^Cohttp.Code.string_of_version http_version
-
-  let meth {meth} = meth
-
-  let resource {resource} = resource
-
-  let http_version {http_version} = http_version
 end
 
 module Entry = struct
 
-  type t = access_log_entry
-  
-  let make ~addr ?userid ~timestamp ~request_line ~status ~length ?referrer ?user_agent () =
-    { addr; userid; timestamp
-    ; request_line
-    ; status; length; referrer; user_agent
-    }
-
-  let addr {addr} = addr
-
-  let userid {userid} = userid
-
-  let timestamp {timestamp} = timestamp
-
-  let request_line {request_line} = request_line
-
-  let status {status} = status
-
-  let length {length} = length
-
-  let referrer {referrer} = referrer
-
-  let user_agent {user_agent} = user_agent
+  type t = access_log_entry =
+    { addr         : Ipaddr.V4.t [@equal fun x y -> Ipaddr.V4.compare x y = 0]
+    ; userid       : string option
+    ; timestamp    : Ptime.t
+    ; request_line : [ `Parsed of RequestLine.t | `Unparsed of string ]
+    ; status       : Cohttp.Code.status_code [@compare Pervasives.compare] [@equal (=)]
+    ; length       : int
+    ; referrer     : string option
+    ; user_agent   : string option
+    } [@@deriving fields, ord, eq, make]
 
   let read_logline_exn lexbuf =
     let addr      = Lexer.ipv4_address lexbuf in

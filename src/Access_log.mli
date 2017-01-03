@@ -28,7 +28,11 @@ type access_log_entry =
 
 module RequestLine : sig
 
-  type t = request_line
+  type t = request_line =
+    { meth         : Cohttp.Code.meth
+    ; resource     : string
+    ; http_version : Cohttp.Code.version
+    } [@@deriving fields, ord, eq]
 
   val make :
     meth:Cohttp.Code.meth ->
@@ -37,19 +41,9 @@ module RequestLine : sig
     unit ->
     request_line
 
-  val compare : t -> t -> int
-
-  val equal : t -> t -> bool
-
   val to_string : request_line -> string
 
   val of_string : string -> request_line option
-
-  val meth : request_line -> Cohttp.Code.meth
-
-  val resource : request_line -> string
-
-  val http_version : request_line -> Cohttp.Code.version
 
 end
 
@@ -57,8 +51,17 @@ end
 
 module Entry : sig
 
-  type t = access_log_entry
-  
+  type t = access_log_entry =
+    { addr         : Ipaddr.V4.t
+    ; userid       : string option
+    ; timestamp    : Ptime.t
+    ; request_line : [ `Parsed of request_line | `Unparsed of string ]
+    ; status       : Cohttp.Code.status_code
+    ; length       : int
+    ; referrer     : string option
+    ; user_agent   : string option
+    } [@@deriving fields, ord, eq]
+
   val make :
     addr:Ipaddr.V4.t ->
     ?userid:string ->
@@ -70,22 +73,6 @@ module Entry : sig
     ?user_agent:string ->
     unit ->
     access_log_entry
-
-  val addr : access_log_entry -> Ipaddr.V4.t
-
-  val userid : access_log_entry -> string option
-
-  val timestamp : access_log_entry -> Ptime.t
-
-  val request_line : access_log_entry -> [ `Parsed of request_line | `Unparsed of string ]
-
-  val status : access_log_entry -> Cohttp.Code.status_code
-
-  val length : access_log_entry -> int
-
-  val referrer : access_log_entry -> string option
-
-  val user_agent : access_log_entry -> string option
 
   val read_entry :
     Lexing.lexbuf ->
@@ -104,4 +91,5 @@ module Entry : sig
   val to_string : ?tz_offset_s:int -> access_log_entry -> string
 
   val pp : Format.formatter -> access_log_entry -> unit
+
 end
