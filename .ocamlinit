@@ -1,6 +1,6 @@
-#directory "src/_build";;
+#directory "_build/src";;
 #require "ptime.top";;
 #require "ptime.clock.os";;
 #require "ipaddr.top";;
 #require "cohttp.top";;
-#load "logparse.cma";;
+#load "access_log.cma";;
