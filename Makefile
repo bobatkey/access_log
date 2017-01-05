@@ -10,7 +10,7 @@ lib:
 	$(OCB) access_log.cma access_log.cmxa
 
 native:
-	$(OCB) analyse.native
+	$(OCB) script_src/analyse.native
 
 clean:
 	rm -rf _build
