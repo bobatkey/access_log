@@ -1,0 +1,9 @@
+(jbuild_version 1)
+
+(library
+ ((name        access_log)
+  (preprocess (pps (ppx_deriving.std ppx_fields_conv)))
+  (public_name access_log)
+  (libraries (ptime cohttp ipaddr))))
+
+(ocamllex (access_log))

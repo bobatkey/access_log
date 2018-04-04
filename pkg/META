@@ -1,8 +1,0 @@
-version = "0.1"
-description = "Parser and generator for web server common log format files"
-requires = "ptime,cohttp,ipaddr,ppx_deriving.runtime"
-archive(byte) = "access_log.cma"
-plugin(byte) = "access_log.cma"
-archive(native) = "access_log.cmxa"
-plugin(native) = "access_log.cmxs"
-exists_if = "access_log.cma"
