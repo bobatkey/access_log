@@ -13,7 +13,7 @@ type request_line =
   ; http_version : Cohttp.Code.version
   }
 
-type access_log_entry =
+type entry =
   { addr         : Ipaddr.V4.t
   ; userid       : string option
   ; timestamp    : Ptime.t
@@ -51,7 +51,7 @@ end
 
 module Entry : sig
 
-  type t = access_log_entry =
+  type t = entry =
     { addr         : Ipaddr.V4.t
     ; userid       : string option
     ; timestamp    : Ptime.t
@@ -72,24 +72,24 @@ module Entry : sig
     ?referrer:string ->
     ?user_agent:string ->
     unit ->
-    access_log_entry
+    entry
 
   val read_entry :
     Lexing.lexbuf ->
-    [ `Line of access_log_entry
+    [ `Line of t
     | `Parse_error_on_line of int
     | `End_of_input ]
 
-  val read_until_eof : Lexing.lexbuf -> access_log_entry list * int list
+  val read_until_eof : Lexing.lexbuf -> entry list * int list
 
-  val of_string : string -> [ `Line of access_log_entry | `Parse_error ]
+  val of_string : string -> [ `Line of entry | `Parse_error ]
 
-  val of_file : string -> access_log_entry list * int list
+  val of_file : string -> entry list * int list
 
-  val output : ?tz_offset_s:int -> out_channel -> access_log_entry -> unit
+  val output : ?tz_offset_s:int -> out_channel -> entry -> unit
 
-  val to_string : ?tz_offset_s:int -> access_log_entry -> string
+  val to_string : ?tz_offset_s:int -> entry -> string
 
-  val pp : Format.formatter -> access_log_entry -> unit
+  val pp : Format.formatter -> entry -> unit
 
 end

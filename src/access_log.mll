@@ -5,7 +5,7 @@ type request_line =
   ; http_version : Cohttp.Code.version
   }
 
-type access_log_entry =
+type entry =
   { addr         : Ipaddr.V4.t
   ; userid       : string option
   ; timestamp    : Ptime.t
@@ -180,7 +180,7 @@ end
 
 module Entry = struct
 
-  type t = access_log_entry =
+  type t = entry =
     { addr         : Ipaddr.V4.t [@equal fun x y -> Ipaddr.V4.compare x y = 0]
     ; userid       : string option
     ; timestamp    : Ptime.t
