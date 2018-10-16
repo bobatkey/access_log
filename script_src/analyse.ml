@@ -30,11 +30,12 @@ let opt_default d = function None -> d | Some s -> s
 
 let analyse_entry = function
   | { Access_log.request_line =
-        `Parsed { Access_log.meth = `GET; resource }
+        `Parsed { Access_log.meth = `GET; resource; _ }
     ; status
     ; addr
     ; user_agent
-    ; timestamp }
+    ; timestamp
+    ; _ }
     when not (Re.execp filtered_agents (opt_default "" user_agent))
       && status <> `Partial_content
       && (Re.execp extensions resource) ->
@@ -64,7 +65,7 @@ let of_logfile filename : Access_log.entry gen =
     let ch = open_in filename in
     let lb = Lexing.from_channel ch in
     let rec loop () =
-      match Access_log.Entry.read_entry lb with
+      match Access_log.Entry.read lb with
         | `Parse_error_on_line _ -> loop ()
         | `End_of_input -> ()
         | `Line l -> k l; loop ()
@@ -74,7 +75,7 @@ let of_logfile filename : Access_log.entry gen =
 let loglines_of_stdin k =
   let lb = Lexing.from_channel stdin in
   let rec loop () =
-    match Access_log.Entry.read_entry lb with
+    match Access_log.Entry.read lb with
       | `Parse_error_on_line _ -> loop ()
       | `End_of_input -> ()
       | `Line l -> k l; loop ()
