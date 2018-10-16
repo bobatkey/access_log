@@ -31,15 +31,8 @@ module RequestLine : sig
   type t = request_line =
     { meth         : Cohttp.Code.meth
     ; resource     : string
-    ; http_version : Cohttp.Code.version
-    } [@@deriving fields, ord, eq]
-
-  val make :
-    meth:Cohttp.Code.meth ->
-    resource:string ->
-    ?http_version:Cohttp.Code.version ->
-    unit ->
-    request_line
+    ; http_version : Cohttp.Code.version [@default `HTTP_1_1]
+    } [@@deriving fields, ord, eq, make]
 
   val to_string : request_line -> string
 
@@ -60,31 +53,15 @@ module Entry : sig
     ; length       : int
     ; referrer     : string option
     ; user_agent   : string option
-    } [@@deriving fields, ord, eq]
+    } [@@deriving fields, ord, eq, make]
 
-  val make :
-    addr:Ipaddr.V4.t ->
-    ?userid:string ->
-    timestamp:Ptime.t ->
-    request_line:[ `Parsed of request_line | `Unparsed of string ] ->
-    status:Cohttp.Code.status_code ->
-    length:int ->
-    ?referrer:string ->
-    ?user_agent:string ->
-    unit ->
-    entry
-
-  val read_entry :
+  val read :
     Lexing.lexbuf ->
     [ `Line of t
     | `Parse_error_on_line of int
     | `End_of_input ]
 
-  val read_until_eof : Lexing.lexbuf -> entry list * int list
-
   val of_string : string -> [ `Line of entry | `Parse_error ]
-
-  val of_file : string -> entry list * int list
 
   val output : ?tz_offset_s:int -> out_channel -> entry -> unit
 
@@ -93,3 +70,9 @@ module Entry : sig
   val pp : Format.formatter -> entry -> unit
 
 end
+
+val read_until_eof : Lexing.lexbuf -> entry list * int list
+
+val of_file : string -> entry list * int list
+
+val seq_of_file : string -> (entry -> unit) -> unit

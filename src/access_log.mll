@@ -217,14 +217,14 @@ module Entry = struct
     { addr; userid; timestamp; request_line = req; status
     ; length; referrer; user_agent = ua }
 
-  let read_entry lexbuf =
+  let read lexbuf =
     try
       let line = read_logline_exn lexbuf in
       let ()   = Lexer.newline lexbuf in
       `Line line
     with
       | Failure _ ->
-         let {Lexing.pos_lnum} = Lexing.lexeme_start_p lexbuf in
+         let {Lexing.pos_lnum;_} = Lexing.lexeme_start_p lexbuf in
          let () = Lexer.until_newline lexbuf in
          `Parse_error_on_line (pos_lnum+1)
       | End_of_file ->
@@ -236,23 +236,6 @@ module Entry = struct
     with
       | Failure _   -> `Parse_error
       | End_of_file -> `Parse_error
-
-  let read_until_eof lb =
-    let rec loop errors accum =
-      match read_entry lb with
-        | `End_of_input             -> List.rev accum, List.rev errors
-        | `Parse_error_on_line lnum -> loop (lnum::errors) accum
-        | `Line line                -> loop errors (line::accum)
-    in
-    loop [] []
-
-  let of_file filename =
-    let ch = open_in filename in
-    try
-      let lb = Lexing.from_channel ch in
-      let l  = read_until_eof lb in
-      close_in ch; l
-    with e -> close_in ch; raise e
 
   let none_means_dash = function
     | None -> "-"
@@ -359,4 +342,34 @@ module Entry = struct
   let pp fmt logline =
     pp_hum ~tz_offset_s:0 () fmt logline
 end
+
+let read_until_eof lb =
+  let rec loop errors accum =
+    match Entry.read lb with
+      | `End_of_input             -> List.rev accum, List.rev errors
+      | `Parse_error_on_line lnum -> loop (lnum::errors) accum
+      | `Line line                -> loop errors (line::accum)
+  in
+  loop [] []
+
+let of_file filename =
+  let ch = open_in filename in
+  try
+    let lb = Lexing.from_channel ch in
+    let l  = read_until_eof lb in
+    close_in ch; l
+  with e -> close_in ch; raise e
+
+let seq_of_file filename f =
+  let ch = open_in filename in
+  try
+    let lb = Lexing.from_channel ch in
+    let rec loop () =
+      match Entry.read lb with
+        | `End_of_input          -> ()
+        | `Parse_error_on_line _ -> loop ()
+        | `Line entry            -> f entry; loop ()
+    in
+    loop (); close_in ch
+  with e -> close_in ch; raise e
 }
