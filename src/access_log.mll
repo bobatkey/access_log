@@ -360,16 +360,13 @@ let of_file filename =
     close_in ch; l
   with e -> close_in ch; raise e
 
-let seq_of_file filename f =
-  let ch = open_in filename in
-  try
-    let lb = Lexing.from_channel ch in
-    let rec loop () =
-      match Entry.read lb with
-        | `End_of_input          -> ()
-        | `Parse_error_on_line _ -> loop ()
-        | `Line entry            -> f entry; loop ()
-    in
-    loop (); close_in ch
-  with e -> close_in ch; raise e
+let seq_of_channel ch =
+  let lb = Lexing.from_channel ch in
+  let rec read () =
+    match Entry.read lb with
+      | `End_of_input          -> Seq.Nil
+      | `Parse_error_on_line _ -> read ()
+      | `Line entry            -> Seq.Cons (entry, read)
+  in
+  read
 }

@@ -17,25 +17,17 @@ let gethostbyaddr addr =
        hostname
 
 let contains_string_re strs =
-  Re.compile
-    Re.(seq [ rep any; alt (List.map str strs); rep any ])
+  Re.(compile (seq [ rep any; alt (List.map str strs); rep any ]))
 
-let filtered_agents =
-  contains_string_re [ "bot"; "spider"; "Flip" ]
+let filtered_agents = contains_string_re [ "bot"; "spider"; "Flip" ]
 
-let extensions =
-  contains_string_re [ "pdf"; "html"; "css"; "bib" ]
+let extensions = contains_string_re [ "pdf"; "html"; "css"; "bib" ]
 
 let opt_default d = function None -> d | Some s -> s
 
 let analyse_entry = function
-  | { Access_log.request_line =
-        `Parsed { Access_log.meth = `GET; resource; _ }
-    ; status
-    ; addr
-    ; user_agent
-    ; timestamp
-    ; _ }
+  | Access_log.{ request_line = `Parsed { meth = `GET; resource; _ }
+               ; status; addr; user_agent; timestamp; _ }
     when not (Re.execp filtered_agents (opt_default "" user_agent))
       && status <> `Partial_content
       && (Re.execp extensions resource) ->
@@ -46,12 +38,6 @@ let analyse_entry = function
   | _ ->
      None
 
-type 'a gen = ('a -> unit) -> unit
-
-let map_filter f g : 'a gen =
-  fun k ->
-    g (fun x -> match f x with None -> () | Some x -> k x)
-
 let tz_offset_s = Ptime_clock.current_tz_offset_s ()
 
 let renderer (time, addr, host, path) =
@@ -60,31 +46,7 @@ let renderer (time, addr, host, path) =
     (opt_default (Ipaddr.V4.to_string addr) host)
     path
 
-let of_logfile filename : Access_log.entry gen =
-  fun k ->
-    let ch = open_in filename in
-    let lb = Lexing.from_channel ch in
-    let rec loop () =
-      match Access_log.Entry.read lb with
-        | `Parse_error_on_line _ -> loop ()
-        | `End_of_input -> ()
-        | `Line l -> k l; loop ()
-    in
-    try loop (); close_in ch with e -> close_in ch; raise e
-
-let loglines_of_stdin k =
-  let lb = Lexing.from_channel stdin in
-  let rec loop () =
-    match Access_log.Entry.read lb with
-      | `Parse_error_on_line _ -> loop ()
-      | `End_of_input -> ()
-      | `Line l -> k l; loop ()
-  in
-  loop ()
-
-let sink_to f g = g f
-
 let _ =
-  loglines_of_stdin
-  |> map_filter analyse_entry
-  |> sink_to renderer
+  Access_log.seq_of_channel stdin
+  |> Seq.filter_map analyse_entry
+  |> Seq.iter renderer

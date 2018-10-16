@@ -55,12 +55,6 @@ module Entry : sig
     ; user_agent   : string option
     } [@@deriving fields, ord, eq, make]
 
-  val read :
-    Lexing.lexbuf ->
-    [ `Line of t
-    | `Parse_error_on_line of int
-    | `End_of_input ]
-
   val of_string : string -> [ `Line of entry | `Parse_error ]
 
   val output : ?tz_offset_s:int -> out_channel -> entry -> unit
@@ -71,8 +65,6 @@ module Entry : sig
 
 end
 
-val read_until_eof : Lexing.lexbuf -> entry list * int list
-
 val of_file : string -> entry list * int list
 
-val seq_of_file : string -> (entry -> unit) -> unit
+val seq_of_channel : in_channel -> entry Seq.t
