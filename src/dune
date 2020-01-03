@@ -2,6 +2,6 @@
  (name        access_log)
  (public_name access_log)
  (preprocess  (pps ppx_deriving.std ppx_fields_conv))
- (libraries   ptime cohttp ipaddr))
+ (libraries   ptime ipaddr))
 
 (ocamllex access_log)

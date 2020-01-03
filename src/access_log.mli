@@ -7,10 +7,29 @@
 
 (**{2 Representation of Log Entries} *)
 
+type http_method =
+  [ `GET
+  | `POST
+  | `HEAD
+  | `DELETE
+  | `PATCH
+  | `PUT
+  | `OPTIONS
+  | `TRACE
+  | `CONNECT
+  | `Other of string
+  ]
+
+type http_version =
+  [ `HTTP_1_0
+  | `HTTP_1_1
+  | `Other of string
+  ]
+
 type request_line =
-  { meth         : Cohttp.Code.meth
+  { meth         : http_method
   ; resource     : string
-  ; http_version : Cohttp.Code.version
+  ; http_version : http_version
   }
 
 type entry =
@@ -18,7 +37,7 @@ type entry =
   ; userid       : string option
   ; timestamp    : Ptime.t
   ; request_line : [ `Parsed of request_line | `Unparsed of string ]
-  ; status       : Cohttp.Code.status_code
+  ; status       : int
   ; length       : int
   ; referrer     : string option
   ; user_agent   : string option
@@ -29,9 +48,9 @@ type entry =
 module RequestLine : sig
 
   type t = request_line =
-    { meth         : Cohttp.Code.meth
+    { meth         : http_method
     ; resource     : string
-    ; http_version : Cohttp.Code.version [@default `HTTP_1_1]
+    ; http_version : http_version [@default `HTTP_1_1]
     } [@@deriving fields, ord, eq, make]
 
   val to_string : request_line -> string
@@ -49,7 +68,7 @@ module Entry : sig
     ; userid       : string option
     ; timestamp    : Ptime.t
     ; request_line : [ `Parsed of request_line | `Unparsed of string ]
-    ; status       : Cohttp.Code.status_code
+    ; status       : int
     ; length       : int
     ; referrer     : string option
     ; user_agent   : string option

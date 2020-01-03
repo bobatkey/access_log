@@ -1,8 +1,62 @@
 {
+type http_method =
+  [ `GET
+  | `POST
+  | `HEAD
+  | `DELETE
+  | `PATCH
+  | `PUT
+  | `OPTIONS
+  | `TRACE
+  | `CONNECT
+  | `Other of string
+  ]
+    [@@deriving ord, eq]
+
+let method_of_string = function
+  | "GET"     -> `GET
+  | "POST"    -> `POST
+  | "HEAD"    -> `HEAD
+  | "DELETE"  -> `DELETE
+  | "PATCH"   -> `PATCH
+  | "PUT"     -> `PUT
+  | "OPTIONS" -> `OPTIONS
+  | "TRACE"   -> `TRACE
+  | "CONNECT" -> `CONNECT
+  | s         -> `Other s
+
+let string_of_method = function
+  | `GET     -> "GET"
+  | `POST    -> "POST"
+  | `HEAD    -> "HEAD"
+  | `DELETE  -> "DELETE"
+  | `PATCH   -> "PATCH"
+  | `PUT     -> "PUT"
+  | `OPTIONS -> "OPTIONS"
+  | `TRACE   -> "TRACE"
+  | `CONNECT -> "CONNECT"
+  | `Other s -> s
+
+type http_version =
+  [ `HTTP_1_0
+  | `HTTP_1_1
+  | `Other of string
+  ] [@@deriving ord, eq]
+
+let version_of_string = function
+  | "HTTP/1.0" -> `HTTP_1_0
+  | "HTTP/1.1" -> `HTTP_1_1
+  | s          -> `Other s
+
+let string_of_version = function
+  | `HTTP_1_0 -> "HTTP/1.0"
+  | `HTTP_1_1 -> "HTTP/1.1"
+  | `Other s  -> s
+
 type request_line =
-  { meth         : Cohttp.Code.meth
+  { meth         : http_method
   ; resource     : string
-  ; http_version : Cohttp.Code.version
+  ; http_version : http_version
   }
 
 type entry =
@@ -10,7 +64,7 @@ type entry =
   ; userid       : string option
   ; timestamp    : Ptime.t
   ; request_line : [ `Parsed of request_line | `Unparsed of string ]
-  ; status       : Cohttp.Code.status_code
+  ; status       : int
   ; length       : int
   ; referrer     : string option
   ; user_agent   : string option
@@ -143,14 +197,14 @@ and request_line = parse
 |     ([^' ']+ as method_str)
   ' ' ([^' ']+ as resource)
   ' ' ([^' ']+ as http_version)
-  { { meth = Cohttp.Code.method_of_string method_str
+  { { meth = method_of_string method_str
     ; resource
-    ; http_version = Cohttp.Code.version_of_string http_version
+    ; http_version = version_of_string http_version
     } }
 
 {
   let status_code lexbuf =
-    Cohttp.Code.status_of_code (posint lexbuf)
+    posint lexbuf
 
   let dash_means_None = function
     | "-" -> None
@@ -159,11 +213,9 @@ end
 
 module RequestLine = struct
   type t = request_line =
-    { meth         : Cohttp.Code.meth
-          [@compare Cohttp.Code.compare_method]
-          [@equal (=)]
+    { meth         : http_method
     ; resource     : string
-    ; http_version : Cohttp.Code.version [@equal (=)] [@default `HTTP_1_1]
+    ; http_version : http_version [@default `HTTP_1_1]
     } [@@deriving fields, ord, eq, make]
 
   let of_string str =
@@ -171,11 +223,11 @@ module RequestLine = struct
     try Some (Lexer.request_line lb) with Failure _ -> None
 
   let to_string {meth; resource; http_version} =
-    Cohttp.Code.string_of_method meth
+    string_of_method meth
     ^" "
     ^resource
     ^" "
-    ^Cohttp.Code.string_of_version http_version
+    ^string_of_version http_version
 end
 
 module Entry = struct
@@ -185,7 +237,7 @@ module Entry = struct
     ; userid       : string option
     ; timestamp    : Ptime.t
     ; request_line : [ `Parsed of RequestLine.t | `Unparsed of string ]
-    ; status       : Cohttp.Code.status_code [@compare Pervasives.compare] [@equal (=)]
+    ; status       : int
     ; length       : int
     ; referrer     : string option
     ; user_agent   : string option
@@ -308,15 +360,15 @@ module Entry = struct
     emit " \"";
     (match logline.request_line with
       | `Parsed {meth; resource; http_version} ->
-         emit (Cohttp.Code.string_of_method meth);
+         emit (string_of_method meth);
          emit " ";
          emit (escape_string resource);
          emit " ";
-         emit (Cohttp.Code.string_of_version http_version)
+         emit (string_of_version http_version)
       | `Unparsed str ->
          emit (escape_string str));
     emit "\" ";
-    emit (string_of_int (Cohttp.Code.code_of_status logline.status));
+    emit (string_of_int logline.status);
     emit " ";
     emit (string_of_int logline.length);
     emit " \"";
