@@ -1,3 +1,0 @@
-true: package(ptime), package(cohttp), package(ipaddr)
-<script_src/analyse.*>: package(ptime.clock.os)
-<src/*>: package(ppx_fields_conv), package(ppx_deriving.std)
