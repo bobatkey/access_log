@@ -4,12 +4,11 @@ version: "0.1"
 maintainer: "Robert Atkey <bob.atkey@gmail.com>"
 authors: "Robert Atkey <bob.atkey@gmail.com>"
 license: "MIT"
-build: [["jbuilder" "build" "-p" name "-j" jobs "@install"]]
-depends: ["jbuilder" {build}
+build: [["dune" "build" "-p" name "-j" jobs "@install"]]
+depends: ["dune" {build}
           "ptime"
-	  "cohttp"
-	  "ocaml-migrate-parsetree.driver-main" {build}
-	  "ppx_deriving.std" {build}
-	  "ppx_fields_conv" {build}
-	  "ipaddr"]
+          "ocaml-migrate-parsetree.driver-main" {build}
+          "ppx_deriving.std" {build}
+          "ppx_fields_conv" {build}
+          "ipaddr"]
 available: [ ocaml-version >= "4.04.0" ]
