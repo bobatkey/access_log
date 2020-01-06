@@ -5,10 +5,11 @@ maintainer: "Robert Atkey <bob.atkey@gmail.com>"
 authors: "Robert Atkey <bob.atkey@gmail.com>"
 license: "MIT"
 build: [["dune" "build" "-p" name "-j" jobs "@install"]]
+homepage: "https://github.com/bobatkey/access_log"
+bug-reports: "https://github.com/bobatkey/access_log/issues"
 depends: ["dune" {build}
           "ptime"
-          "ocaml-migrate-parsetree.driver-main" {build}
-          "ppx_deriving.std" {build}
+          "ppx_deriving" {build}
           "ppx_fields_conv" {build}
           "ipaddr"]
 available: [ ocaml-version >= "4.04.0" ]
