@@ -1,3 +1,0 @@
-(executable
- (name      analyse)
- (libraries ipaddr re access_log ptime.clock.os))
