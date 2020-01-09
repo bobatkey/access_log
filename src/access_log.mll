@@ -70,7 +70,22 @@ type entry =
   ; user_agent   : string option
   }
 
-module Lexer = struct
+module Lexer : sig
+  val end_of_input : Lexing.lexbuf -> unit
+
+  val ipv4_address : Lexing.lexbuf -> Ipaddr.V4.t
+  val request_line : Lexing.lexbuf -> request_line
+  val ws : Lexing.lexbuf -> unit
+  val dash : Lexing.lexbuf -> unit
+  val non_ws : Lexing.lexbuf -> string
+  val datetime : Lexing.lexbuf -> Ptime.t
+  val quoted_string : Lexing.lexbuf -> string
+  val status_code : Lexing.lexbuf -> int
+  val posint_or_dash : Lexing.lexbuf -> int
+  val newline : Lexing.lexbuf -> unit
+
+  val until_newline : Lexing.lexbuf -> unit
+end = struct
 
 let month_of_string = function
   | "Jan" -> 1
@@ -116,11 +131,14 @@ let hex = digit | ['A'-'F''a'-'f']
 
 (* Parsing rules *)
 
-rule ipv4_address = parse
+rule end_of_input = parse
+| eof { () }
+
+and ipv4_address = parse
 | ipv4_address as str
     { Ipaddr.V4.of_string_exn str }
-| eof
-    { raise End_of_file }
+  (*| eof
+      { raise End_of_file }*)
 
 and datetime = parse
 | '[' (digit digit as day)
@@ -206,10 +224,11 @@ and request_line = parse
   let status_code lexbuf =
     posint lexbuf
 
-  let dash_means_None = function
-    | "-" -> None
-    | str -> Some str
 end
+
+let dash_means_None = function
+  | "-" -> None
+  | str -> Some str
 
 module RequestLine = struct
   type t = request_line =
@@ -248,7 +267,7 @@ module Entry = struct
     let ()        = Lexer.ws lexbuf in
     let ()        = Lexer.dash lexbuf in
     let ()        = Lexer.ws lexbuf in
-    let userid    = Lexer.dash_means_None (Lexer.non_ws lexbuf) in
+    let userid    = dash_means_None (Lexer.non_ws lexbuf) in
     let ()        = Lexer.ws lexbuf in
     let timestamp = Lexer.datetime lexbuf in
     let ()        = Lexer.ws lexbuf in
@@ -263,24 +282,26 @@ module Entry = struct
     let ()        = Lexer.ws lexbuf in
     let length    = Lexer.posint_or_dash lexbuf in
     let ()        = Lexer.ws lexbuf in
-    let referrer  = Lexer.quoted_string lexbuf |> Lexer.dash_means_None in
+    let referrer  = dash_means_None (Lexer.quoted_string lexbuf) in
     let ()        = Lexer.ws lexbuf in
-    let ua        = Lexer.quoted_string lexbuf |> Lexer.dash_means_None in
+    let ua        = dash_means_None (Lexer.quoted_string lexbuf) in
     { addr; userid; timestamp; request_line = req; status
     ; length; referrer; user_agent = ua }
 
   let read lexbuf =
-    try
-      let line = read_logline_exn lexbuf in
-      let ()   = Lexer.newline lexbuf in
-      `Line line
-    with
-      | Failure _ ->
+    match Lexer.end_of_input lexbuf with
+    | () ->
+      `End_of_input
+    | exception Failure _ ->
+      (try
+         let line = read_logline_exn lexbuf in
+         let ()   = Lexer.newline lexbuf in
+         `Line line
+       with
+       | Failure _ ->
          let {Lexing.pos_lnum;_} = Lexing.lexeme_start_p lexbuf in
          let () = Lexer.until_newline lexbuf in
-         `Parse_error_on_line (pos_lnum+1)
-      | End_of_file ->
-         `End_of_input
+         `Parse_error_on_line (pos_lnum+1))
 
   let of_string str =
     let lexbuf = Lexing.from_string str in
