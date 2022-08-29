@@ -20,6 +20,7 @@
   (ppx_deriving (>= 4.4))
   (ppx_fields_conv (>= 0.13.0))
   (ipaddr (>= 4.0.0))
+  yojson
 
   (utop :dev)
   (merlin :dev)
