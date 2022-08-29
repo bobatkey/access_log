@@ -1,0 +1,3 @@
+(executable
+ (name json_of_log)
+ (libraries access_log yojson))
