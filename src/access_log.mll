@@ -71,7 +71,7 @@ type entry =
   }
 
 module Lexer : sig
-  val end_of_input : Lexing.lexbuf -> unit
+  val end_of_input : Lexing.lexbuf -> bool
 
   val ipv4_address : Lexing.lexbuf -> Ipaddr.V4.t
   val request_line : Lexing.lexbuf -> request_line
@@ -224,6 +224,10 @@ and request_line = parse
   let status_code lexbuf =
     posint lexbuf
 
+  let end_of_input lexbuf =
+    try end_of_input lexbuf; true
+    with Failure _ -> false
+
 end
 
 let dash_means_None = function
@@ -289,26 +293,25 @@ module Entry = struct
     ; length; referrer; user_agent = ua }
 
   let read lexbuf =
-    match Lexer.end_of_input lexbuf with
-    | () ->
-      `End_of_input
-    | exception Failure _ ->
-      (try
-         let line = read_logline_exn lexbuf in
-         let ()   = Lexer.newline lexbuf in
-         `Line line
-       with
-       | Failure _ ->
-         let {Lexing.pos_lnum;_} = Lexing.lexeme_start_p lexbuf in
-         let () = Lexer.until_newline lexbuf in
-         `Parse_error_on_line (pos_lnum+1))
+    if Lexer.end_of_input lexbuf then
+      Ok None
+    else
+      try
+        let line = read_logline_exn lexbuf in
+        let ()   = Lexer.newline lexbuf in
+        Ok (Some line)
+      with
+      | Failure _ ->
+        let {Lexing.pos_lnum;_} = Lexing.lexeme_start_p lexbuf in
+        let () = Lexer.until_newline lexbuf in
+        Error (`Line (pos_lnum+1))
 
   let of_string str =
     let lexbuf = Lexing.from_string str in
-    try `Line (read_logline_exn lexbuf)
+    try Ok (read_logline_exn lexbuf)
     with
-      | Failure _   -> `Parse_error
-      | End_of_file -> `Parse_error
+      | Failure _   -> Error ()
+      | End_of_file -> Error ()
 
   let none_means_dash = function
     | None -> "-"
@@ -417,13 +420,13 @@ module Entry = struct
 end
 
 let read_until_eof lb =
-  let rec loop errors accum =
+  let rec loop accum =
     match Entry.read lb with
-      | `End_of_input             -> List.rev accum, List.rev errors
-      | `Parse_error_on_line lnum -> loop (lnum::errors) accum
-      | `Line line                -> loop errors (line::accum)
+    | Ok None            -> List.rev accum
+    | Error (`Line lnum) -> loop (Error (`Line lnum) :: accum)
+    | Ok (Some entry)    -> loop (Ok entry::accum)
   in
-  loop [] []
+  loop []
 
 let of_file filename =
   let ch = open_in filename in
@@ -437,9 +440,9 @@ let seq_of_channel ch =
   let lb = Lexing.from_channel ch in
   let rec read () =
     match Entry.read lb with
-      | `End_of_input          -> Seq.Nil
-      | `Parse_error_on_line _ -> read ()
-      | `Line entry            -> Seq.Cons (entry, read)
+    | Ok None         -> Seq.Nil
+    | Error _ as x    -> Seq.Cons (x, read)
+    | Ok (Some entry) -> Seq.Cons (Ok entry, read)
   in
   read
 }

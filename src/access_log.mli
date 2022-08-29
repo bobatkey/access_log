@@ -20,11 +20,15 @@ type http_method =
   | `Other of string
   ]
 
+val string_of_method : http_method -> string
+
 type http_version =
   [ `HTTP_1_0
   | `HTTP_1_1
   | `Other of string
   ]
+
+val string_of_version : http_version -> string
 
 type request_line =
   { meth         : http_method
@@ -74,7 +78,7 @@ module Entry : sig
     ; user_agent   : string option
     } [@@deriving fields, ord, eq, make]
 
-  val of_string : string -> [ `Line of entry | `Parse_error ]
+  val of_string : string -> (entry, unit) result
 
   val output : ?tz_offset_s:int -> out_channel -> entry -> unit
 
@@ -84,6 +88,6 @@ module Entry : sig
 
 end
 
-val of_file : string -> entry list * int list
+val of_file : string -> (entry, [>`Line of int]) result list
 
-val seq_of_channel : in_channel -> entry Seq.t
+val seq_of_channel : in_channel -> (entry, [>`Line of int]) result Seq.t
